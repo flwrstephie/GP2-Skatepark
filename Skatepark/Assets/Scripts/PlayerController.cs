@@ -19,38 +19,57 @@ public class PlayerController : MonoBehaviour
     void Update()
     {
         MovePlayer();
-        JumpPlayer(); // Add jump function here
+        JumpPlayer();
     }
 
     void MovePlayer()
+{
+    float horizontal = Input.GetAxis("Horizontal");
+    float vertical = Input.GetAxis("Vertical");
+    Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
+
+    if (direction.magnitude >= 0.1f)
+    {
+        // Use camera's forward direction for movement
+        Vector3 cameraForward = Camera.main.transform.forward;
+        cameraForward.y = 0; // Ignore vertical rotation of the camera
+        cameraForward.Normalize();
+
+        Vector3 cameraRight = Camera.main.transform.right;
+        cameraRight.y = 0; // Ignore vertical rotation of the camera
+        cameraRight.Normalize();
+
+        // Calculate movement direction based on camera orientation
+        Vector3 moveDir = (cameraForward * vertical + cameraRight * horizontal).normalized;
+
+        // Rotate the player to face the movement direction
+        float targetAngle = Mathf.Atan2(moveDir.x, moveDir.z) * Mathf.Rad2Deg;
+        float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+        transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+        // Move the player
+        rb.MovePosition(transform.position + moveDir * speed * Time.deltaTime);
+    }
+}
+
+
+    void JumpPlayer()
     {
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
-        if (direction.magnitude >= 0.1f)
-        {
-            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
-            transform.rotation = Quaternion.Euler(0f, angle, 0f);
-
-            Vector3 moveDir = transform.forward; 
-            transform.Translate(moveDir * speed * Time.deltaTime, Space.World);
-        }
-    }
-
-    void JumpPlayer()
-    {
-        // Check if the player is grounded and pressing the jump button (space key)
-        if (isGrounded && Input.GetKeyDown(KeyCode.Space))
+        // Only allow jumping if the player is moving and grounded
+        if (isGrounded && direction.magnitude >= 0.1f && Input.GetKeyDown(KeyCode.Space))
         {
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            isGrounded = false; // Prevent multiple jumps while in the air
         }
     }
 
-    // This method checks if the player is grounded by using a small raycast
     private void OnCollisionStay(Collision collision)
     {
+        // Set isGrounded to true only if the player touches the ground
         isGrounded = true;
     }
 

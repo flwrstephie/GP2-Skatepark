@@ -1,19 +1,24 @@
 using UnityEngine;
+using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
-    public float speed = 5f;
+    public float speed = 7f;
     public float turnSmoothTime = 0.1f;
     private float turnSmoothVelocity;
-    public float jumpForce = 5f; 
-    private Rigidbody rb;       
-    private bool isGrounded;    
-
-    public Transform skateboard; // Reference to the skateboard
+    public float jumpForce = 10f;
+    private Rigidbody rb;
+    private bool isGrounded;
+    private float originalSpeed;
+    private float originalJumpForce;
+    private Coroutine speedBoostCoroutine; 
+    private Coroutine jumpBoostCoroutine;  
 
     void Start()
     {
-        rb = GetComponent<Rigidbody>(); 
+        rb = GetComponent<Rigidbody>();
+        originalSpeed = speed;
+        originalJumpForce = jumpForce;
     }
 
     void Update()
@@ -23,53 +28,73 @@ public class PlayerController : MonoBehaviour
     }
 
     void MovePlayer()
-{
-    float horizontal = Input.GetAxis("Horizontal");
-    float vertical = Input.GetAxis("Vertical");
-    Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
-
-    if (direction.magnitude >= 0.1f)
-    {
-        // Use camera's forward direction for movement
-        Vector3 cameraForward = Camera.main.transform.forward;
-        cameraForward.y = 0; // Ignore vertical rotation of the camera
-        cameraForward.Normalize();
-
-        Vector3 cameraRight = Camera.main.transform.right;
-        cameraRight.y = 0; // Ignore vertical rotation of the camera
-        cameraRight.Normalize();
-
-        // Calculate movement direction based on camera orientation
-        Vector3 moveDir = (cameraForward * vertical + cameraRight * horizontal).normalized;
-
-        // Rotate the player to face the movement direction
-        float targetAngle = Mathf.Atan2(moveDir.x, moveDir.z) * Mathf.Rad2Deg;
-        float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
-        transform.rotation = Quaternion.Euler(0f, angle, 0f);
-
-        // Move the player
-        rb.MovePosition(transform.position + moveDir * speed * Time.deltaTime);
-    }
-}
-
-
-    void JumpPlayer()
     {
         float horizontal = Input.GetAxis("Horizontal");
         float vertical = Input.GetAxis("Vertical");
         Vector3 direction = new Vector3(horizontal, 0f, vertical).normalized;
 
-        // Only allow jumping if the player is moving and grounded
-        if (isGrounded && direction.magnitude >= 0.1f && Input.GetKeyDown(KeyCode.Space))
+        if (direction.magnitude >= 0.1f)
+        {
+            float targetAngle = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            float angle = Mathf.SmoothDampAngle(transform.eulerAngles.y, targetAngle, ref turnSmoothVelocity, turnSmoothTime);
+            transform.rotation = Quaternion.Euler(0f, angle, 0f);
+
+            Vector3 moveDir = transform.forward;
+            transform.Translate(moveDir * speed * Time.deltaTime, Space.World);
+        }
+    }
+
+    void JumpPlayer()
+    {
+        // Check if the player is grounded and moving (horizontal or vertical input is non-zero)
+        if (isGrounded && (Input.GetAxis("Horizontal") != 0 || Input.GetAxis("Vertical") != 0) && Input.GetKeyDown(KeyCode.Space))
         {
             rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
-            isGrounded = false; // Prevent multiple jumps while in the air
         }
+    }
+
+    public IEnumerator ApplySpeedBoost(float duration, float multiplier)
+    {
+        if (speedBoostCoroutine != null)
+        {
+            StopCoroutine(speedBoostCoroutine); 
+            speed = originalSpeed;             
+        }
+
+        speedBoostCoroutine = StartCoroutine(SpeedBoost(duration, multiplier));
+        yield return null;
+    }
+
+    private IEnumerator SpeedBoost(float duration, float multiplier)
+    {
+        speed *= multiplier;
+        yield return new WaitForSeconds(duration);
+        speed = originalSpeed;
+        speedBoostCoroutine = null; 
+    }
+
+    public IEnumerator ApplyJumpBoost(float duration, float multiplier)
+    {
+        if (jumpBoostCoroutine != null)
+        {
+            StopCoroutine(jumpBoostCoroutine); 
+            jumpForce = originalJumpForce;     
+        }
+
+        jumpBoostCoroutine = StartCoroutine(JumpBoost(duration, multiplier));
+        yield return null;
+    }
+
+    private IEnumerator JumpBoost(float duration, float multiplier)
+    {
+        jumpForce *= multiplier;
+        yield return new WaitForSeconds(duration);
+        jumpForce = originalJumpForce;
+        jumpBoostCoroutine = null; 
     }
 
     private void OnCollisionStay(Collision collision)
     {
-        // Set isGrounded to true only if the player touches the ground
         isGrounded = true;
     }
 
